@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ហ្គេមទាញព្រ័ត្រគណិតវិទ្យា + នាទី</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Kantumruy Pro', sans-serif;
+            background-color: #f0f9ff;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .game-field {
+            background: linear-gradient(to bottom, #87CEEB 60%, #deb887 60%);
+            height: 300px;
+            position: relative;
+            border-radius: 24px;
+            border: 6px solid #5d4037;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+        }
+
+        .rope {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            width: 200%;
+            height: 12px;
+            background: repeating-linear-gradient(45deg, #d2b48c, #d2b48c 10px, #8b4513 10px, #8b4513 20px);
+            transform: translate(-50%, -50%);
+            transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
+        }
+
+        .rope-marker {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            width: 6px;
+            height: 45px;
+            background-color: #ff0000;
+            transform: translateX(-50%);
+            box-shadow: 0 0 15px rgba(255,0,0,0.6);
+            border-radius: 2px;
+        }
+
+        .character {
+            font-size: 4rem;
+            position: absolute;
+            bottom: 10px;
+            transition: all 0.6s ease;
+            filter: drop-shadow(2px 8px 10px rgba(0,0,0,0.3));
+            user-select: none;
+        }
+
+        .player-side { left: 10%; }
+        .enemy-side { right: 10%; }
+
+        .victory-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .winner-bounce { animation: bounce 0.5s infinite; }
+
+        .shaking { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .timer-container {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        #timer-bar {
+            width: 100%;
+            height: 100%;
+            background: #22c55e;
+            transition: width 0.1s linear, background 0.3s;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen items-center justify-center p-4">
+
+    <div class="max-w-2xl w-full bg-white rounded-[2rem] shadow-2xl p-8 relative border-b-8 border-gray-200">
+        <h1 class="text-4xl font-black text-center text-blue-600 mb-6 tracking-tight">🇰🇭 ទាញព្រ័ត្រគណិត</h1>
+        
+        <div class="flex justify-between items-center mb-4 px-6 py-4 bg-gradient-to-r from-blue-50 to-red-50 rounded-2xl border-2 border-white shadow-inner">
+            <div class="text-center">
+                <p class="text-xs font-bold text-blue-400 uppercase tracking-widest">អ្នកលេង</p>
+                <p id="player-score" class="text-3xl font-black text-blue-600">0</p>
+            </div>
+            <div class="flex-1 px-8 text-center">
+                <p class="text-xs font-bold text-gray-400 mb-2">កម្រិតឈ្នះ: ៨៥%</p>
+                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner border border-gray-100">
+                    <div id="progress-bar" class="bg-blue-500 h-full transition-all duration-700 ease-out" style="width: 50%"></div>
+                </div>
+            </div>
+            <div class="text-center">
+                <p class="text-xs font-bold text-red-400 uppercase tracking-widest">យក្ស</p>
+                <p id="enemy-score" class="text-3xl font-black text-red-600">0</p>
+            </div>
+        </div>
+
+        <div class="game-field mb-6">
+            <div id="rope-element" class="rope">
+                <div class="rope-marker"></div>
+            </div>
+            <div id="p-char" class="character player-side">👦</div>
+            <div id="e-char" class="character enemy-side">👹</div>
+            
+            <div class="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 px-8 py-3 rounded-2xl shadow-xl border-b-4 border-yellow-500 min-w-[200px] text-center">
+                <span id="question-text" class="text-3xl font-black text-gray-800 tabular-nums">...</span>
+                <div class="timer-container">
+                    <div id="timer-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center gap-4">
+            <div class="flex w-full gap-3">
+                <input type="number" id="answer-input" 
+                       class="flex-1 text-center text-3xl font-bold border-4 border-blue-100 rounded-2xl p-4 focus:border-blue-500 focus:outline-none transition-colors shadow-inner" 
+                       placeholder="?" autocomplete="off">
+                <button onclick="checkAnswer()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-black px-10 py-4 rounded-2xl shadow-[0_6px_0_#1e40af] transition-all active:translate-y-1 active:shadow-none text-xl">
+                    ឆ្លើយ
+                </button>
+            </div>
+            <p class="text-sm font-medium text-gray-400 italic">ប្រយ័ត្ន៖ អ្នកមានពេលតែ ១០ វិនាទីប៉ុណ្ណោះក្នុងមួយសំណួរ!</p>
+        </div>
+    </div>
+
+    <div id="start-screen" class="fixed inset-0 bg-blue-600 z-[110] flex flex-col items-center justify-center p-6 text-center">
+        <div class="bg-white p-12 rounded-[3rem] shadow-2xl max-w-sm border-b-8 border-gray-200">
+            <div class="text-8xl mb-6">⏱️</div>
+            <h2 class="text-4xl font-black mb-4 text-gray-800">របៀបលេង</h2>
+            <p class="text-gray-500 mb-10 text-lg leading-relaxed">ឆ្លើយសំណួរឱ្យបានត្រឹមត្រូវមុន **អស់ពេល**! បើអស់ពេល យក្សនឹងទាញអ្នកទៅខាងវា!</p>
+            <button onclick="startGame()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-5 rounded-2xl text-2xl shadow-[0_8px_0_#166534] transition-all active:translate-y-1 active:shadow-none">
+                យល់ព្រម
+            </button>
+        </div>
+    </div>
+
+    <div id="result-modal" class="victory-modal">
+        <div class="bg-white p-12 rounded-[3rem] text-center shadow-2xl max-w-sm mx-4 border-b-8 border-gray-200">
+            <div id="result-emoji" class="text-8xl mb-6">🏆</div>
+            <h2 id="result-title" class="text-4xl font-black mb-3">លទ្ធផល</h2>
+            <p id="result-message" class="text-gray-500 mb-10 text-lg">...</p>
+            <button onclick="location.reload()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl text-2xl shadow-[0_8px_0_#1e3a8a] transition-all active:translate-y-1 active:shadow-none">
+                លេងម្ដងទៀត
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'correct') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'clapping') {
+                for(let i=0; i<12; i++) {
+                    const noise = audioCtx.createOscillator();
+                    const nGain = audioCtx.createGain();
+                    noise.type = 'square';
+                    noise.frequency.setValueAtTime(Math.random() * 400 + 200, audioCtx.currentTime + (i * 0.08));
+                    nGain.gain.setValueAtTime(0.1, audioCtx.currentTime + (i * 0.08));
+                    nGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + (i * 0.08) + 0.2);
+                    noise.connect(nGain); nGain.connect(audioCtx.destination);
+                    noise.start(audioCtx.currentTime + (i * 0.08)); noise.stop(audioCtx.currentTime + (i * 0.08) + 0.2);
+                }
+            }
+        }
+
+        let currentAnswer = 0;
+        let ropePos = 50;
+        let pScore = 0;
+        let eScore = 0;
+        const winThreshold = 85;
+        const loseThreshold = 15;
+        
+        let timeLeft = 100; // Percentage
+        let timerInterval = null;
+        const TIME_LIMIT = 10; // 10 seconds
+
+        const questionEl = document.getElementById('question-text');
+        const inputEl = document.getElementById('answer-input');
+        const ropeEl = document.getElementById('rope-element');
+        const pScoreEl = document.getElementById('player-score');
+        const eScoreEl = document.getElementById('enemy-score');
+        const progressEl = document.getElementById('progress-bar');
+        const timerBar = document.getElementById('timer-bar');
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 100;
+            timerBar.style.width = '100%';
+            timerBar.style.backgroundColor = '#22c55e';
+            
+            const step = 100 / (TIME_LIMIT * 10); // step for every 100ms
+            
+            timerInterval = setInterval(() => {
+                timeLeft -= step;
+                timerBar.style.width = `${timeLeft}%`;
+
+                if (timeLeft <= 30) {
+                    timerBar.style.backgroundColor = '#ef4444'; // Red if less than 3s
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeOut();
+                }
+            }, 100);
+        }
+
+        function handleTimeOut() {
+            ropePos -= 7; // Enemy pulls
+            eScore += 5;
+            playSound('wrong');
+            createEffect('⏰ អស់ពេល!', 'text-orange-500');
+            updateUI();
+            checkGameState();
+            if (ropePos > loseThreshold) generateQuestion();
+        }
+
+        function generateQuestion() {
+            const num1 = Math.floor(Math.random() * 40) + 10;
+            const num2 = Math.floor(Math.random() * 40) + 10;
+            currentAnswer = num1 + num2;
+            questionEl.innerHTML = `${num1} + ${num2} = <span class="text-blue-500">?</span>`;
+            inputEl.value = '';
+            inputEl.focus();
+            startTimer();
+        }
+
+        function checkAnswer() {
+            const userAnswer = parseInt(inputEl.value);
+            if (isNaN(userAnswer)) return;
+
+            clearInterval(timerInterval); // Stop timer when answered
+
+            if (userAnswer === currentAnswer) {
+                ropePos += 8;
+                pScore += 10;
+                playSound('correct');
+                createEffect('✨ ត្រឹមត្រូវ!', 'text-green-500');
+            } else {
+                ropePos -= 6;
+                eScore += 10;
+                playSound('wrong');
+                inputEl.classList.add('shaking');
+                setTimeout(() => inputEl.classList.remove('shaking'), 500);
+                createEffect('❌ ខុសហើយ!', 'text-red-500');
+            }
+
+            updateUI();
+            if (!checkGameState()) {
+                generateQuestion();
+            }
+        }
+
+        function updateUI() {
+            ropeEl.style.left = `${ropePos}%`;
+            pScoreEl.innerText = pScore;
+            eScoreEl.innerText = eScore;
+            progressEl.style.width = `${ropePos}%`;
+            progressEl.className = ropePos > 50 ? "bg-green-500 h-full transition-all" : "bg-red-500 h-full transition-all";
+        }
+
+        function createEffect(text, colorClass) {
+            const effect = document.createElement('div');
+            effect.className = `fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-black text-5xl pointer-events-none z-[120] ${colorClass}`;
+            effect.innerText = text;
+            document.body.appendChild(effect);
+            setTimeout(() => {
+                effect.style.transition = 'all 0.8s ease-out';
+                effect.style.transform = 'translate(-50%, -200%)';
+                effect.style.opacity = '0';
+            }, 50);
+            setTimeout(() => effect.remove(), 800);
+        }
+
+        function checkGameState() {
+            if (ropePos >= winThreshold) {
+                showResult(true);
+                return true;
+            } else if (ropePos <= loseThreshold) {
+                showResult(false);
+                return true;
+            }
+            return false;
+        }
+
+        function showResult(isWin) {
+            clearInterval(timerInterval);
+            const modal = document.getElementById('result-modal');
+            const emoji = document.getElementById('result-emoji');
+            const title = document.getElementById('result-title');
+            const msg = document.getElementById('result-message');
+
+            if (isWin) {
+                playSound('clapping');
+                emoji.innerText = '🏆';
+                title.innerText = 'អ្នកឈ្នះហើយ!';
+                title.className = "text-4xl font-black mb-3 text-green-600";
+                msg.innerText = `អ្នកពូកែណាស់! អ្នកបានយកឈ្នះយក្សហើយ។ ពិន្ទុ៖ ${pScore}`;
+            } else {
+                emoji.innerText = '👹';
+                title.innerText = 'អ្នកចាញ់ហើយ!';
+                title.className = "text-4xl font-black mb-3 text-red-600";
+                msg.innerText = 'យក្សបានទាញអ្នកធ្លាក់ទឹកហើយ! ព្យាយាមម្ដងទៀត។';
+            }
+            modal.style.display = 'flex';
+        }
+
+        function startGame() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('start-screen').style.display = 'none';
+            generateQuestion();
+        }
+
+        inputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkAnswer();
+        });
+    </script>
+</body>
+</html>
